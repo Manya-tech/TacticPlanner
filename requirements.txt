@@ -1,26 +1,16 @@
-# Core Web Frameworks
-fastapi>=0.104.1
+# Web Framework
 flask>=2.3.0
-uvicorn>=0.24.0
 
 # Machine Learning and NLP
 sentence-transformers>=2.2.2
 langchain>=0.1.0
 langchain-ollama>=0.1.0
-langchain-core>=0.1.0
 faiss-cpu>=1.7.4
 
 # Data Processing
 pandas>=2.0.0
-numpy>=1.24.0
 openpyxl>=3.1.0
-
-# Database
-sqlalchemy>=2.0.0
 
 # Template and Web Utils
 jinja2>=3.1.0
 markupsafe>=2.1.0
-
-# System and Utilities
-pickle-mixin>=1.0.2
