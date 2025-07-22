@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TacticPlanner</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}" />
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById("chat-form");
+            const input = document.getElementById("query");
+            const chatLog = document.getElementById("chat-log");
+
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
+                const userMessage = input.value.trim();
+                if (!userMessage) return;
+
+                // Remove placeholder on first message
+                const placeholder = document.getElementById("chat-placeholder");
+                if (placeholder) {
+                    placeholder.remove();
+                }
+
+                // Display user message immediately
+                const userMessageDiv = document.createElement("div");
+                userMessageDiv.classList.add("message", "message-personal", "new");
+                userMessageDiv.innerHTML = '<span class="avatar user-avatar">👤</span>' + userMessage;
+                chatLog.appendChild(userMessageDiv);
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+                // Clear input and disable it
+                input.value = "";
+                input.disabled = true;
+
+                // Show typing indicator
+                const typingDiv = document.createElement("div");
+                typingDiv.classList.add("message", "loading", "new");
+                typingDiv.innerHTML = '<span>typing...</span>';
+                chatLog.appendChild(typingDiv);
+                chatLog.scrollTop = chatLog.scrollHeight;
+
+                // Send query to server via fetch API
+                fetch(form.action, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-Requested-With": "XMLHttpRequest"
+                    },
+                    body: new URLSearchParams({ query: userMessage })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    let answerText = data.answer || "No response";
+
+                    // Remove typing indicator
+                    typingDiv.remove();
+
+                    // Display bot answer
+                    const botMessageDiv = document.createElement("div");
+                    botMessageDiv.classList.add("message", "bot-message", "new");
+                    botMessageDiv.innerHTML = '<span class="avatar bot-avatar">🤖</span> ' + answerText;
+                    chatLog.appendChild(botMessageDiv);
+                    chatLog.scrollTop = chatLog.scrollHeight;
+
+                    // Re-enable input
+                    input.disabled = false;
+                    input.focus();
+                })
+                .catch(error => {
+                    typingDiv.textContent = "Error: Could not get response.";
+                    input.disabled = false;
+                    input.focus();
+                });
+            });
+
+            // Allow Enter key to submit the form
+            input.addEventListener("keydown", function (e) {
+                if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    form.dispatchEvent(new Event("submit"));
+                }
+            });
+        });
+    </script>
+</head>
+<body>
+    <div class="chat-app">
+        <header class="chat-header">
+            <h1 class="header-left">TacticPlanner</h1>
+            <div class="welcome-text">Welcome {{ username }} from {{ role }}</div>
+        </header>
+        <main class="chat-main" id="chat-log">
+            <p class="chat-placeholder" id="chat-placeholder">Start the conversation by typing your question below.</p>
+        </main>
+        <form id="chat-form" class="chat-form" autocomplete="off" method="post" action="{{ url_for('chat_post') }}">
+            <div class="input-container">
+                <input
+                    name="query"
+                    id="query"
+                    type="text"
+                    placeholder="type something"
+                    required
+                    autocomplete="off"
+                />
+                <button type="submit" class="send-button" aria-label="Send message">➤</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

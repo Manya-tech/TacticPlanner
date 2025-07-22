@@ -1,0 +1,277 @@
+/* General styles */
+body, html {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #ffffff;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    color: #222;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* Signup page split layout */
+.signup-page {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+}
+
+.signup-left {
+    flex: 1;
+    background: #fff;
+    padding: 60px 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.signup-left .signup-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: #4b2995;
+    text-transform: lowercase;
+}
+
+.signup-left h2 {
+    font-size: 2rem;
+    font-weight: 700;
+    margin-bottom: 10px;
+    color: #222;
+}
+
+.signup-left p {
+    font-size: 1rem;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.signup-left form {
+    display: flex;
+    flex-direction: column;
+}
+
+.signup-left label {
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #333;
+}
+
+.signup-left input[type="text"] {
+    padding: 12px 15px;
+    margin-bottom: 20px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.3s ease;
+}
+
+.signup-left input[type="text"]:focus {
+    border-color: #4b2995;
+    box-shadow: 0 0 8px 2px #7a5de8;
+}
+
+.signup-left button {
+    background-color: #4b2995;
+    color: white;
+    font-weight: 700;
+    padding: 15px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.signup-left button:hover {
+    background-color: #3a1f6e;
+}
+
+/* Signup right side purple illustration */
+.signup-right {
+    flex: 1;
+    background: #7a5de8;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+}
+
+.signup-right .illustration {
+    width: 80%;
+    height: 80%;
+    background: url('https://cdn-icons-png.flaticon.com/512/4140/4140047.png') no-repeat center center;
+    background-size: contain;
+}
+
+/* Chat header left alignment */
+.chat-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 30px 40px 30px 40px;
+    background: linear-gradient(90deg, #4b2995, #7a5de8);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    border-radius: 0 0 15px 15px;
+}
+
+.header-left {
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: #fff;
+    margin-right: auto;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    letter-spacing: 1.5px;
+}
+
+/* Centered chat input at bottom, half window width */
+.chat-form {
+    position: fixed;
+    left: 50%;
+    bottom: 30px;
+    transform: translateX(-50%);
+    width: 50vw;
+    min-width: 320px;
+    max-width: 600px;
+    background: #7a5de8;
+    border-radius: 30px;
+    box-shadow: 0 4px 15px rgba(122, 93, 232, 0.6);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    z-index: 1000;
+}
+
+/* Input box with send button inside */
+.input-container {
+    position: relative;
+    width: 100%;
+    display: flex;
+    align-items: center;
+}
+
+.chat-form input[type="text"] {
+    width: 100%;
+    padding: 15px 50px 15px 20px; /* right padding for button */
+    font-size: 1.1rem;
+    border-radius: 30px;
+    border: none;
+    outline: none;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    transition: box-shadow 0.3s ease, background 0.3s ease;
+}
+
+.chat-form input[type="text"]::placeholder {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.chat-form input[type="text"]:focus {
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.25);
+}
+
+/* Send button inside input box */
+.send-button {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #fff;
+    border: none;
+    color: #7a5de8;
+    font-size: 1.5rem;
+    padding: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    height: 40px;
+    width: 40px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    box-shadow: 0 2px 8px rgba(122, 93, 232, 0.5);
+}
+
+.send-button:hover {
+    background: #5e3dbd;
+    color: #fff;
+    box-shadow: 0 4px 15px rgba(94, 61, 189, 0.8);
+}
+
+/* Chat main area with bottom padding to avoid overlap */
+.chat-main {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    min-height: 70vh;
+    max-height: 70vh;
+    padding: 30px 40px 120px 40px; /* bottom padding for input box */
+    box-sizing: border-box;
+    background-color: #f9f7ff;
+    overflow-y: auto;
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(122, 93, 232, 0.2);
+}
+
+/* Message styles */
+.message {
+    background: #e0dff7;
+    border-radius: 15px;
+    padding: 15px 20px;
+    margin-bottom: 15px;
+    max-width: 70%;
+    font-size: 1.1rem;
+    line-height: 1.5;
+    color: #3a2a6a;
+    box-shadow: 0 2px 8px rgba(122, 93, 232, 0.3);
+    word-break: break-word;
+}
+
+.message-personal {
+    background: #c9b8f9;
+    color: #2a1e5a;
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+.bot-message {
+    background: #d6ccf9;
+    color: #2a1e5a;
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+.loading {
+    font-style: italic;
+    color: #6b5b9a;
+    background: none;
+    box-shadow: none;
+    padding-left: 0;
+}
+
+/* Avatar styles for bot */
+.avatar {
+    width: 35px;
+    height: 35px;
+    background-color: #bfb8e9;
+    border-radius: 50%;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 10px;
+    overflow: hidden;
+}
+
+.avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    display: block;
+}
