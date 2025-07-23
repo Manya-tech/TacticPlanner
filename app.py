@@ -21,7 +21,7 @@ app.secret_key = os.urandom(24)
 app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'))
 
 # ---------------------- Load Models and Data ----------------------
-df = pd.read_excel("department_marketing_mix_data.xlsx")
+df = pd.read_excel("data/department_marketing_mix_data.xlsx")
 df["text"] = df.apply(lambda row: f"{row['Department']} department ran {row['Channel']} campaign in {row['Year']}. Spend: {row['Spend']}, ROI: {row['ROI']}, Incremental ROI: {row['Incremental ROI']}", axis=1)
 
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
