@@ -8,52 +8,9 @@ import numpy as np
 from numpy.linalg import norm
 import pandas as pd
 import faiss
-import jinja2
 import os
 from dotenv import load_dotenv
-
-def format_answer_for_display(answer):
-    # Improved HTML formatting for allocations and reasoning
-    # Headings and subheadings
-    answer = re.sub(r"Let's break down the budget allocation:?", "<h3>Budget Allocation Breakdown:</h3>", answer)
-    answer = re.sub(r"### Proposed Allocation:?", "<h3>Proposed Allocation:</h3>", answer)
-    answer = re.sub(r"### Reasoning:?", "<h3>Reasoning:</h3>", answer)
-    answer = re.sub(r"Here's a breakdown:?", "<h3>Allocation Breakdown:</h3>", answer)
-    answer = re.sub(r"\*\*Final Allocation:\*\*", "<h3>Final Allocation:</h3>", answer)
-    # Allocation items (bullets)
-    answer = re.sub(r"([A-Za-z ]+):\s*- Allocate ([\$\d,]+).*", r"<li><b>\1:</b> <span style='color:#2e8b57;'>\2</span></li>", answer)
-    answer = re.sub(r"([A-Za-z ]+):\s*- ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
-    # Minimum allocation
-    answer = re.sub(r"Minimum allocation: ([^\n]+)", r"<li><b>Minimum allocation:</b> \1</li>", answer)
-    # ROI and reasoning bullets
-    answer = re.sub(r"- \*\*([A-Za-z ]+)\*\*: ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
-    answer = re.sub(r"- ([A-Za-z ]+): ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
-    # Start lists after headings
-    answer = re.sub(r"(<h3>Budget Allocation Breakdown:</h3>|<h3>Allocation Breakdown:</h3>|<h3>Proposed Allocation:</h3>)", r"\1<ul>", answer)
-    # Start reasoning list
-    answer = answer.replace("<h3>Reasoning:</h3>", "</ul><h3>Reasoning:</h3><ul>")
-    # Close any open list at end
-    if not answer.endswith("</ul>"):
-        answer += "</ul>"
-    # Remove stray empty lists
-    answer = answer.replace("<ul></ul>", "")
-    # Bold key phrases
-    answer = re.sub(r"\*\*([A-Za-z ]+)\*\*", r"<b>\1</b>", answer)
-    # Add spacing after headings
-    answer = re.sub(r"(<h3>[^<]+</h3>)", r"\1<br>", answer)
-    return answer
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from markupsafe import Markup
-from langchain.schema import Document
-from langchain.prompts import ChatPromptTemplate
-from langchain_mistralai import MistralAIEmbeddings, ChatMistralAI
-import numpy as np
-from numpy.linalg import norm
-import pandas as pd
-import faiss
-import jinja2
-import os
-from dotenv import load_dotenv
+import markdown
 
 load_dotenv()
 
@@ -67,7 +24,6 @@ app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'
 df = pd.read_excel("department_marketing_mix_data.xlsx")
 df["text"] = df.apply(lambda row: f"{row['Department']} department ran {row['Channel']} campaign in {row['Year']}. Spend: {row['Spend']}, ROI: {row['ROI']}, Incremental ROI: {row['Incremental ROI']}", axis=1)
 
-load_dotenv()
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
     raise ValueError("MISTRAL_API_KEY not found in environment. Please set it in your .env file.")
@@ -105,7 +61,15 @@ Context: {document_context}
 Answer:
 """
 
-import re
+def format_answer_for_display(answer):
+    try:
+        # Convert Markdown to HTML
+        html_output = markdown.markdown(answer, extensions=['extra', 'smarty'])
+        return html_output
+    except Exception as e:
+        print(f"Markdown parsing error: {e}")
+        return answer
+
 def retrieve_similar_documents(query, top_k=5):
     departments = df['Department'].str.lower().unique()
     channels = df['Channel'].str.lower().unique()
@@ -194,8 +158,6 @@ def chat_get():
     if "username" not in session or "role" not in session:
         return redirect(url_for("signin_get"))
     return render_template("chat.html", username=session["username"], role=session["role"])
-
-
 
 @app.route("/chat", methods=["POST"])
 def chat_post():
