@@ -1,3 +1,47 @@
+import re
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+from markupsafe import Markup
+from langchain.schema import Document
+from langchain.prompts import ChatPromptTemplate
+from langchain_mistralai import MistralAIEmbeddings, ChatMistralAI
+import numpy as np
+from numpy.linalg import norm
+import pandas as pd
+import faiss
+import jinja2
+import os
+from dotenv import load_dotenv
+
+def format_answer_for_display(answer):
+    # Improved HTML formatting for allocations and reasoning
+    # Headings and subheadings
+    answer = re.sub(r"Let's break down the budget allocation:?", "<h3>Budget Allocation Breakdown:</h3>", answer)
+    answer = re.sub(r"### Proposed Allocation:?", "<h3>Proposed Allocation:</h3>", answer)
+    answer = re.sub(r"### Reasoning:?", "<h3>Reasoning:</h3>", answer)
+    answer = re.sub(r"Here's a breakdown:?", "<h3>Allocation Breakdown:</h3>", answer)
+    answer = re.sub(r"\*\*Final Allocation:\*\*", "<h3>Final Allocation:</h3>", answer)
+    # Allocation items (bullets)
+    answer = re.sub(r"([A-Za-z ]+):\s*- Allocate ([\$\d,]+).*", r"<li><b>\1:</b> <span style='color:#2e8b57;'>\2</span></li>", answer)
+    answer = re.sub(r"([A-Za-z ]+):\s*- ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
+    # Minimum allocation
+    answer = re.sub(r"Minimum allocation: ([^\n]+)", r"<li><b>Minimum allocation:</b> \1</li>", answer)
+    # ROI and reasoning bullets
+    answer = re.sub(r"- \*\*([A-Za-z ]+)\*\*: ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
+    answer = re.sub(r"- ([A-Za-z ]+): ([^\n]+)", r"<li><b>\1:</b> \2</li>", answer)
+    # Start lists after headings
+    answer = re.sub(r"(<h3>Budget Allocation Breakdown:</h3>|<h3>Allocation Breakdown:</h3>|<h3>Proposed Allocation:</h3>)", r"\1<ul>", answer)
+    # Start reasoning list
+    answer = answer.replace("<h3>Reasoning:</h3>", "</ul><h3>Reasoning:</h3><ul>")
+    # Close any open list at end
+    if not answer.endswith("</ul>"):
+        answer += "</ul>"
+    # Remove stray empty lists
+    answer = answer.replace("<ul></ul>", "")
+    # Bold key phrases
+    answer = re.sub(r"\*\*([A-Za-z ]+)\*\*", r"<b>\1</b>", answer)
+    # Add spacing after headings
+    answer = re.sub(r"(<h3>[^<]+</h3>)", r"\1<br>", answer)
+    return answer
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from markupsafe import Markup
 from langchain.schema import Document
@@ -169,12 +213,16 @@ def chat_post():
         print("generating answer")
         answer = generate_answer(query, docs, session["role"], history=session["history"])
         print("answer generated")
-        # Ensure answer is a string for template rendering
         if not isinstance(answer, str):
             answer = str(answer)
+        # Format answer for display
+        try:
+            answer = format_answer_for_display(answer)
+        except Exception as e:
+            print(f"Formatting error: {e}")
+            # Fallback to plain answer
     session["history"].append(f"Agent: {answer}")
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
-        # Return JSON with answer only for AJAX requests
         return jsonify({"answer": answer})
     else:
         return render_template("chat.html", username=session["username"], role=session["role"], query=query, answer=answer)
