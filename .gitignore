@@ -1,0 +1,8 @@
+.env
+*.pyc
+__pycache__/
+*.db
+*.pkl
+*.ipynb_checkpoints/
+faiss_mmm_index.index
+department_marketing_mix_data.xlsx
