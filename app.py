@@ -1,9 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from markupsafe import Markup
-from sentence_transformers import SentenceTransformer
 from langchain.schema import Document
 from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 import pandas as pd
 import faiss
 import jinja2
@@ -22,15 +21,12 @@ app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'
 df = pd.read_excel("department_marketing_mix_data.xlsx")
 df["text"] = df.apply(lambda row: f"{row['Department']} department ran {row['Channel']} campaign in {row['Year']}. Spend: {row['Spend']}, ROI: {row['ROI']}, Incremental ROI: {row['Incremental ROI']}", axis=1)
 
-
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
-index = faiss.read_index("faiss_mmm_index.index")
-
-
-# --- Gemini Model Setup ---
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in environment. Please set it in your .env file.")
+
+embed_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07",google_api_key=GOOGLE_API_KEY)
+index = faiss.read_index("faiss_mmm_index.index")
 LANGUAGE_MODEL = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=GOOGLE_API_KEY
@@ -90,9 +86,12 @@ def retrieve_similar_documents(query, top_k=5):
     docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
     # If no docs found, fallback to semantic search
     if not docs:
-        query_embedding = embed_model.encode([query]).astype("float32")
-        distances, indices = index.search(query_embedding, k=top_k)
-        docs = [Document(page_content=df.iloc[idx]["text"]) for idx in indices[0]]
+        query_embedding = embed_model.embed_query(query)
+        document_embeddings = embed_model.embed_documents(list(df['text']))
+        index = faiss.IndexFlatL2(len(query_embedding))
+        index.add(document_embeddings)
+        D, I = index.search([query_embedding], top_k)
+        docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
     # Add a flag if a required channel is missing
     required_channels = []
     if 'email marketing' in query.lower():

@@ -1,13 +1,6 @@
 # Web Framework
 flask>=2.3.0
 
-# Machine Learning and NLP
-sentence-transformers>=2.2.2
-langchain>=0.1.0
-langchain-google-genai>=0.0.4
-faiss-cpu>=1.7.4
-python-dotenv>=0.19.2
-
 # Data Processing
 pandas>=2.0.0
 openpyxl>=3.1.0
@@ -15,3 +8,12 @@ openpyxl>=3.1.0
 # Template and Web Utils
 jinja2>=3.1.0
 markupsafe>=2.1.0
+
+# Environment Variables
+python-dotenv>=0.19.2
+
+# Machine Learning, Embeddings, RAG
+langchain>=0.1.0
+langchain-google-genai>=0.0.4
+faiss-cpu>=1.7.4
+pydantic>=2.0.0
