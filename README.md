@@ -54,7 +54,7 @@ TacticPlanner/
 3. Interact with the AI assistant to get marketing mix recommendations.
 
 ## Demo
-[Watch the Demo Video](https://example.com/demo-video)
+[Watch the Demo Video](https://github.com/user-attachments/assets/8885b21e-f342-46c9-91b3-30fba9e13530)
 
 ## Live Website
 [Visit the Live Website](https://tacticplanner.onrender.com)
