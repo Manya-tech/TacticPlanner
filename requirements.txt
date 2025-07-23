@@ -17,3 +17,5 @@ langchain>=0.1.0
 sentence-transformers>=2.2.2
 faiss-cpu>=1.7.4
 pydantic>=2.0.0
+sentence-transformers>=2.2.2
+langchain-google-genai>=0.0.4
