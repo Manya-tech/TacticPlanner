@@ -2,8 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from markupsafe import Markup
 from langchain.schema import Document
 from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
-from sentence_transformers import SentenceTransformer
+from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 import pandas as pd
 import faiss
 import jinja2
@@ -26,7 +25,7 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in environment. Please set it in your .env file.")
 
-embed_model = SentenceTransformer("all-MiniLM-L6-v2")
+embed_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07", google_api_key=GOOGLE_API_KEY)
 index = faiss.read_index("faiss_mmm_index.index")
 LANGUAGE_MODEL = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
