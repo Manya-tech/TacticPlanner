@@ -2,7 +2,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from markupsafe import Markup
 from langchain.schema import Document
 from langchain.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_mistralai import MistralAIEmbeddings, ChatMistralAI
 import numpy as np
 from numpy.linalg import norm
 import pandas as pd
@@ -23,33 +23,27 @@ app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'
 df = pd.read_excel("department_marketing_mix_data.xlsx")
 df["text"] = df.apply(lambda row: f"{row['Department']} department ran {row['Channel']} campaign in {row['Year']}. Spend: {row['Spend']}, ROI: {row['ROI']}, Incremental ROI: {row['Incremental ROI']}", axis=1)
 
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY not found in environment. Please set it in your .env file.")
+load_dotenv()
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+if not MISTRAL_API_KEY:
+    raise ValueError("MISTRAL_API_KEY not found in environment. Please set it in your .env file.")
 
-EMBEDDING_MODEL_NAME = "gemini-embedding-001"
-EMBEDDING_DIM = 768  # Recommended for efficiency and normalization
+EMBEDDING_MODEL_NAME = "mistral-embed"
+EMBEDDING_DIM = 1024  # Mistral embed model default dimension
 
-# Document embeddings: RETRIEVAL_DOCUMENT task type
-embed_model = GoogleGenerativeAIEmbeddings(
-    model=EMBEDDING_MODEL_NAME,
-    google_api_key=GOOGLE_API_KEY,
-    output_dimensionality=EMBEDDING_DIM,
-    task_type="RETRIEVAL_DOCUMENT"
-)
+embed_model = MistralAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
 # Precompute and normalize document embeddings for FAISS
 document_texts = list(df["text"])
 raw_doc_embeddings = embed_model.embed_documents(document_texts)
 doc_embeddings = [np.array(e) / norm(e) for e in raw_doc_embeddings]
 doc_embeddings_np = np.stack(doc_embeddings)
-index = faiss.IndexFlatL2(EMBEDDING_DIM)
+if doc_embeddings_np.dtype != np.float32:
+    doc_embeddings_np = doc_embeddings_np.astype(np.float32)
+index = faiss.IndexFlatL2(doc_embeddings_np.shape[1])
 index.add(doc_embeddings_np)
 
-LANGUAGE_MODEL = ChatGoogleGenerativeAI(
-    model="gemini-2.5-flash",
-    google_api_key=GOOGLE_API_KEY
-)
+LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-latest")
 
 PROMPT_TEMPLATE = """
 You are an agentic AI assistant specialized in marketing mix optimization for a pharmaceutical company.
@@ -103,17 +97,12 @@ def retrieve_similar_documents(query, top_k=5):
         filtered = filtered.sort_values(by=['ROI', 'Spend'], ascending=False)
 
     docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
-    # If no docs found, fallback to semantic search using normalized embeddings and correct task type
+    # If no docs found, fallback to semantic search using normalized embeddings
     if not docs:
-        # Use RETRIEVAL_QUERY for query embedding
-        query_embed_model = GoogleGenerativeAIEmbeddings(
-            model=EMBEDDING_MODEL_NAME,
-            google_api_key=GOOGLE_API_KEY,
-            output_dimensionality=EMBEDDING_DIM,
-            task_type="RETRIEVAL_QUERY"
-        )
-        query_embedding_raw = query_embed_model.embed_query(query)
+        query_embedding_raw = embed_model.embed_query(query)
         query_embedding = np.array(query_embedding_raw) / norm(query_embedding_raw)
+        if query_embedding.dtype != np.float32:
+            query_embedding = query_embedding.astype(np.float32)
         D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
         docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
     # Add a flag if a required channel is missing
