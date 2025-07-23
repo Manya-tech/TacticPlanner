@@ -1,4 +1,3 @@
-import re
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from markupsafe import Markup
 from langchain.schema import Document
@@ -11,6 +10,7 @@ import faiss
 import os
 from dotenv import load_dotenv
 import markdown
+import re
 
 load_dotenv()
 
