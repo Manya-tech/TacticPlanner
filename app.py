@@ -3,6 +3,8 @@ from markupsafe import Markup
 from langchain.schema import Document
 from langchain.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+import numpy as np
+from numpy.linalg import norm
 import pandas as pd
 import faiss
 import jinja2
@@ -25,8 +27,25 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY not found in environment. Please set it in your .env file.")
 
-embed_model = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-exp-03-07", google_api_key=GOOGLE_API_KEY)
-index = faiss.read_index("faiss_mmm_index.index")
+EMBEDDING_MODEL_NAME = "gemini-embedding-001"
+EMBEDDING_DIM = 768  # Recommended for efficiency and normalization
+
+# Document embeddings: RETRIEVAL_DOCUMENT task type
+embed_model = GoogleGenerativeAIEmbeddings(
+    model=EMBEDDING_MODEL_NAME,
+    google_api_key=GOOGLE_API_KEY,
+    output_dimensionality=EMBEDDING_DIM,
+    task_type="RETRIEVAL_DOCUMENT"
+)
+
+# Precompute and normalize document embeddings for FAISS
+document_texts = list(df["text"])
+raw_doc_embeddings = embed_model.embed_documents(document_texts)
+doc_embeddings = [np.array(e) / norm(e) for e in raw_doc_embeddings]
+doc_embeddings_np = np.stack(doc_embeddings)
+index = faiss.IndexFlatL2(EMBEDDING_DIM)
+index.add(doc_embeddings_np)
+
 LANGUAGE_MODEL = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash",
     google_api_key=GOOGLE_API_KEY
@@ -84,13 +103,18 @@ def retrieve_similar_documents(query, top_k=5):
         filtered = filtered.sort_values(by=['ROI', 'Spend'], ascending=False)
 
     docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
-    # If no docs found, fallback to semantic search
+    # If no docs found, fallback to semantic search using normalized embeddings and correct task type
     if not docs:
-        query_embedding = embed_model.embed_query(query)
-        document_embeddings = embed_model.embed_documents(list(df['text']))
-        index = faiss.IndexFlatL2(len(query_embedding))
-        index.add(document_embeddings)
-        D, I = index.search([query_embedding], top_k)
+        # Use RETRIEVAL_QUERY for query embedding
+        query_embed_model = GoogleGenerativeAIEmbeddings(
+            model=EMBEDDING_MODEL_NAME,
+            google_api_key=GOOGLE_API_KEY,
+            output_dimensionality=EMBEDDING_DIM,
+            task_type="RETRIEVAL_QUERY"
+        )
+        query_embedding_raw = query_embed_model.embed_query(query)
+        query_embedding = np.array(query_embedding_raw) / norm(query_embedding_raw)
+        D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
         docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
     # Add a flag if a required channel is missing
     required_channels = []
