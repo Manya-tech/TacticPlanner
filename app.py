@@ -21,8 +21,8 @@ app.secret_key = os.urandom(24)
 app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'))
 
 # ---------------------- Load Models and Data ----------------------
-df = pd.read_excel("data/department_marketing_mix_data.xlsx")
-df["text"] = df.apply(lambda row: f"{row['Department']} department ran {row['Channel']} campaign in {row['Year']}. Spend: {row['Spend']}, ROI: {row['ROI']}, Incremental ROI: {row['Incremental ROI']}", axis=1)
+df = pd.read_excel("data/Sample data.xlsx")
+df["text"] = df.apply(lambda row: f"{row['Brand']} brand ran {row['Category']} campaign using {row['Tactic']} in {row['Timeperiod']}. Spend: {row['$ Spend (MM)']}, Contribution: {row['$ Contribution']}, ROI: {row['ROI']}, Incremental ROI: {row['iROI']}", axis=1)
 
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
@@ -43,7 +43,7 @@ if doc_embeddings_np.dtype != np.float32:
 index = faiss.IndexFlatL2(doc_embeddings_np.shape[1])
 index.add(doc_embeddings_np)
 
-LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-latest")
+LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-2402")
 
 PROMPT_TEMPLATE = """
 You are an agentic AI assistant specialized in marketing mix optimization for a pharmaceutical company.
@@ -71,38 +71,39 @@ def format_answer_for_display(answer):
         return answer
 
 def retrieve_similar_documents(query, top_k=5):
-    departments = df['Department'].str.lower().unique()
-    channels = df['Channel'].str.lower().unique()
+    brands = df['Brand'].str.lower().unique()
+    categories = df['Category'].str.lower().unique()
     year_match = re.search(r'(20\d{2})', query)
-    year = int(year_match.group(1)) if year_match else None
+    timeperiod = int(year_match.group(1)) if year_match else None
 
-    # Use session['role'] as department if not mentioned in query
-    department = None
-    for dep in departments:
-        if dep in query.lower():
-            department = dep
+    # Use session['role'] as brand if not mentioned in query
+    brand = None
+    for br in brands:
+        if br in query.lower():
+            brand = br
             break
-    if department is None and 'role' in session:
-        department = session['role'].lower()
+    if brand is None and 'role' in session:
+        brand = session['role'].lower()
 
-    mentioned_channels = [ch for ch in channels if ch in query.lower()]
-    wants_all_channels = bool(re.search(r'all channels', query, re.IGNORECASE))
+    mentioned_categories = [cat for cat in categories if cat in query.lower()]
+    wants_all_categories = bool(re.search(r'all categories', query, re.IGNORECASE))
 
     filtered = df.copy()
-    if department:
-        filtered = filtered[filtered['Department'].str.lower() == department]
-    if year:
-        filtered = filtered[filtered['Year'] == year]
+    if brand:
+        filtered = filtered[filtered['Brand'].str.lower() == brand]
+    if timeperiod:
+        filtered = filtered[filtered['Timeperiod'] == timeperiod]
 
-    # If user wants all channels, ignore channel filtering entirely
-    if wants_all_channels:
-        pass  # do not filter by channel
-    elif mentioned_channels:
-        filtered = filtered[filtered['Channel'].str.lower().isin(mentioned_channels)]
+    # If user wants all categories, ignore category filtering entirely
+    if wants_all_categories:
+        pass  # do not filter by category
+    elif mentioned_categories:
+        filtered = filtered[filtered['Category'].str.lower().isin(mentioned_categories)]
 
-    # If budget/objective is mentioned, prioritize rows with spend/ROI
+    # If budget/objective is mentioned, prioritize rows with spend/contribution
     if re.search(r'budget|roi|spend|invest|objective', query, re.IGNORECASE):
-        filtered = filtered.sort_values(by=['ROI', 'Spend'], ascending=False)
+        # Ensure sorting logic uses correct columns
+        filtered = filtered.sort_values(by=['ROI', '$ Spend (MM)'], ascending=False)
 
     docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
     # If no docs found, fallback to semantic search using normalized embeddings
@@ -113,13 +114,14 @@ def retrieve_similar_documents(query, top_k=5):
             query_embedding = query_embedding.astype(np.float32)
         D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
         docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
-    # Add a flag if a required channel is missing
-    required_channels = []
+    # Add a flag if a required tactic is missing
+    required_tactics = []
     if 'email marketing' in query.lower():
-        required_channels.append('email marketing')
-    missing_channels = [ch for ch in required_channels if ch not in filtered['Channel'].str.lower().unique()]
-    if missing_channels:
-        docs.append(Document(page_content=f"WARNING: Historical data for channels {', '.join(missing_channels)} is missing. Please extrapolate or reason based on available data."))
+        required_tactics.append('email marketing')
+    missing_tactics = [tac for tac in required_tactics if tac not in filtered['Tactic'].str.lower().unique()]
+    if missing_tactics:
+        # Update warnings for missing data
+        docs.append(Document(page_content=f"WARNING: Historical data for tactics {', '.join(missing_tactics)} is missing. Please extrapolate or reason based on available data."))
     return docs
 
 def generate_answer(user_query, context_documents, user_role, history=None):
@@ -138,8 +140,16 @@ def generate_answer(user_query, context_documents, user_role, history=None):
     if "</think>" in response_content:
         ans_split = response_content.split("</think>")
         print(ans_split)
-        return ans_split[1].strip()
-    return response_content.strip()
+        answer = ans_split[1].strip()
+    else:
+        answer = response_content.strip()
+
+    # Add "Did I answer your question properly?" unless the query is a greeting
+    greetings = ["hi", "hello", "how are you"]
+    if not any(greeting in user_query.lower() for greeting in greetings):
+        answer += "\n\nDid I answer your question properly? Do you have any more questions?"
+
+    return answer
 
 @app.route("/", methods=["GET"])
 def signin_get():
@@ -164,10 +174,14 @@ def chat_post():
     if "username" not in session or "role" not in session:
         return redirect(url_for("signin_get"))
     query = request.form.get("query")
-    # Store conversation history in session
+
+    # Ensure conversation history is initialized
     if "history" not in session:
         session["history"] = []
+
+    # Append user query to history
     session["history"].append(f"User: {query}")
+
     docs = retrieve_similar_documents(query)
     if not docs:
         answer = "Not enough relevant data found. Please rephrase or provide more context."
@@ -177,13 +191,16 @@ def chat_post():
         print("answer generated")
         if not isinstance(answer, str):
             answer = str(answer)
-        # Format answer for display
-        try:
-            answer = format_answer_for_display(answer)
-        except Exception as e:
-            print(f"Formatting error: {e}")
-            # Fallback to plain answer
+
+    # Append LLM response to history
     session["history"].append(f"Agent: {answer}")
+
+    # Format answer for display
+    try:
+        answer = format_answer_for_display(answer)
+    except Exception as e:
+        print(f"Formatting error: {e}")
+
     if request.headers.get("X-Requested-With") == "XMLHttpRequest":
         return jsonify({"answer": answer})
     else:
