@@ -46,15 +46,20 @@ index.add(doc_embeddings_np)
 LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-2402")
 
 PROMPT_TEMPLATE = """
-You are an agentic AI assistant specialized in marketing mix optimization for a pharmaceutical company.
-You have access to past marketing mix data as context.
-When given a user query containing constraints, goals, budget, channel, or other inputs, analyze these carefully and provide optimized marketing tactic recommendations.
-If the query is a greeting, casual conversation, or unrelated to the context, respond appropriately, naturally and within 2-3 lines only.
-For example, if user says hello, you can say "Hello <user name> from <role>! How can I assist you with your marketing mix optimization today?"
-Use the provided context only when it is relevant to the query.
-If the context is insufficient to answer the query confidently, say so and ask the user a clarification question.
-If historical data for a required channel is missing, extrapolate or reason based on available data and clearly mention this in your answer.
-Keep your response concise and clear. For questions related to planning, explain your reasoning in your response in a clear, concise and to the point manner.
+You are an advanced AI assistant specializing in marketing mix optimization for a pharmaceutical company.
+Your role is to analyze user queries and provide actionable recommendations based on historical data and constraints.
+
+When given a user query, follow these steps:
+1. Carefully analyze the constraints, goals, budget, channels, and other inputs provided.
+2. Use historical data as context to generate optimized marketing tactic recommendations.
+3. Ensure recommendations adhere to constraints, such as budget limits, investment caps, and channel-specific rules.
+4. If historical data for a required channel is missing, extrapolate or reason based on available data and clearly mention this in your answer.
+5. Provide concise, clear, and actionable responses. For planning-related queries, explain your reasoning in a structured and logical manner.
+
+For casual conversations or greetings, respond naturally and briefly. For example:
+- If the user says "hello," respond with "Hello <user name> from <role>! How can I assist you with your marketing mix optimization today?"
+
+If the context is insufficient to answer the query confidently, ask the user for clarification.
 
 Query: {user_query} 
 Context: {document_context} 
@@ -147,7 +152,7 @@ def generate_answer(user_query, context_documents, user_role, history=None):
     # Add "Did I answer your question properly?" unless the query is a greeting
     greetings = ["hi", "hello", "how are you"]
     if not any(greeting in user_query.lower() for greeting in greetings):
-        answer += "\n\nDid I answer your question properly? Do you have any more questions?"
+        answer += "\n\nDo you have any follow up questions?"
 
     return answer
 
