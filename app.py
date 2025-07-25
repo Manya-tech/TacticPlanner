@@ -43,7 +43,7 @@ if doc_embeddings_np.dtype != np.float32:
 index = faiss.IndexFlatL2(doc_embeddings_np.shape[1])
 index.add(doc_embeddings_np)
 
-LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-2402")
+LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-2407")
 
 PROMPT_TEMPLATE = """
 You are an advanced AI assistant specializing in marketing mix optimization for a pharmaceutical company.
