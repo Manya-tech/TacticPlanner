@@ -75,7 +75,7 @@ def format_answer_for_display(answer):
         print(f"Markdown parsing error: {e}")
         return answer
 
-def retrieve_similar_documents(query, top_k=5):
+def retrieve_similar_documents(query, top_k=10):
     brands = df['Brand'].str.lower().unique()
     categories = df['Category'].str.lower().unique()
     year_match = re.search(r'(20\d{2})', query)
@@ -107,27 +107,30 @@ def retrieve_similar_documents(query, top_k=5):
 
     # If budget/objective is mentioned, prioritize rows with spend/contribution
     if re.search(r'budget|roi|spend|invest|objective', query, re.IGNORECASE):
-        # Ensure sorting logic uses correct columns
         filtered = filtered.sort_values(by=['ROI', '$ Spend (MM)'], ascending=False)
 
     docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
+
     # If no docs found, fallback to semantic search using normalized embeddings
-    if not docs:
-        query_embedding_raw = embed_model.embed_query(query)
-        query_embedding = np.array(query_embedding_raw) / norm(query_embedding_raw)
-        if query_embedding.dtype != np.float32:
-            query_embedding = query_embedding.astype(np.float32)
-        D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
-        docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
+    query_embedding_raw = embed_model.embed_query(query)
+    query_embedding = np.array(query_embedding_raw) / norm(query_embedding_raw)
+    if query_embedding.dtype != np.float32:
+        query_embedding = query_embedding.astype(np.float32)
+    D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
+    faiss_docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
+
+    # Combine filtered and FAISS results
+    combined_docs = docs + faiss_docs
+
     # Add a flag if a required tactic is missing
     required_tactics = []
     if 'email marketing' in query.lower():
         required_tactics.append('email marketing')
     missing_tactics = [tac for tac in required_tactics if tac not in filtered['Tactic'].str.lower().unique()]
     if missing_tactics:
-        # Update warnings for missing data
-        docs.append(Document(page_content=f"WARNING: Historical data for tactics {', '.join(missing_tactics)} is missing. Please extrapolate or reason based on available data."))
-    return docs
+        combined_docs.append(Document(page_content=f"WARNING: Historical data for tactics {', '.join(missing_tactics)} is missing. Please extrapolate or reason based on available data."))
+
+    return combined_docs
 
 def generate_answer(user_query, context_documents, user_role, history=None):
     context_text = "\n\n".join([doc.page_content for doc in context_documents])
