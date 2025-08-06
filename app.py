@@ -22,7 +22,7 @@ app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'
 
 # ---------------------- Load Models and Data ----------------------
 df = pd.read_excel("data/Sample data.xlsx")
-df["text"] = df.apply(lambda row: f"{row['Brand']} brand ran {row['Category']} campaign using {row['Tactic']} in {row['Timeperiod']}. Spend: {row['$ Spend (MM)']}, Contribution: {row['$ Contribution']}, ROI: {row['ROI']}, Incremental ROI: {row['iROI']}", axis=1)
+df["text"] = df.apply(lambda row: f"{row['Brand']} brand ran {row['Category']} campaign using {row['Tactic']} tactic in {row['Timeperiod']}. Spend: {row['$ Spend (MM)']}, Contribution: {row['$ Contribution']}, ROI: {row['ROI']}, Incremental ROI: {row['iROI']}", axis=1)
 
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
@@ -43,23 +43,18 @@ if doc_embeddings_np.dtype != np.float32:
 index = faiss.IndexFlatL2(doc_embeddings_np.shape[1])
 index.add(doc_embeddings_np)
 
-LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-2407")
+LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-latest")
 
 PROMPT_TEMPLATE = """
-You are an advanced AI assistant specializing in marketing mix optimization for a pharmaceutical company.
-Your role is to analyze user queries and provide actionable recommendations based on historical data and constraints.
-
-When given a user query, follow these steps:
-1. Carefully analyze the constraints, goals, budget, channels, and other inputs provided.
-2. Use historical data as context to generate optimized marketing tactic recommendations.
-3. Ensure recommendations adhere to constraints, such as budget limits, investment caps, and channel-specific rules.
-4. If historical data for a required channel is missing, extrapolate or reason based on available data and clearly mention this in your answer.
-5. Provide concise, clear, and actionable responses. For planning-related queries, explain your reasoning in a structured and logical manner.
-
-For casual conversations or greetings, respond naturally and briefly. For example:
-- If the user says "hello," respond with "Hello <user name> from <role>! How can I assist you with your marketing mix optimization today?"
-
-If the context is insufficient to answer the query confidently, ask the user for clarification.
+You are an AI assistant specialized in marketing mix optimization for a pharmaceutical company.
+Your tasks are:
+1.Analyze user inputs: goals, budgets, constraints, categories, and tactics.
+2.Use historical data to recommend optimized tactic-level investments.
+3.Ensure recommendations meet all constraints. If any data is missing, extrapolate reasonably and note assumptions.
+4.Provide concise, correct, and actionable outputs with clear reasoning for planning-related queries.
+5.For casual messages (e.g., "hello"), respond naturally and briefly.
+6.Ask for clarification if input context is insufficient.
+7.Ensure that your mathematical calculations are correct.
 
 Query: {user_query} 
 Context: {document_context} 
@@ -76,42 +71,86 @@ def format_answer_for_display(answer):
         return answer
 
 def retrieve_similar_documents(query, top_k=10):
-    brands = df['Brand'].str.lower().unique()
-    categories = df['Category'].str.lower().unique()
-    year_match = re.search(r'(20\d{2})', query)
-    timeperiod = int(year_match.group(1)) if year_match else None
+    """
+    Retrieves relevant documents from the dataframe based on filters extracted
+    from the user query, and augments with a semantic search.
+    """
+    # --- 1. Extract entities from the query ---
+    
+    # Years: Find all years mentioned, and identify which ones have data.
+    years_in_query = [int(y) for y in re.findall(r'(20\d{2})', query)]
+    available_years = df['Timeperiod'].unique()
+    years_with_data = [y for y in years_in_query if y in available_years]
 
-    # Use session['role'] as brand if not mentioned in query
-    brand = None
-    for br in brands:
-        if br in query.lower():
-            brand = br
-            break
-    if brand is None and 'role' in session:
-        brand = session['role'].lower()
+    # Brands: Find all known brands mentioned.
+    all_brands = df['Brand'].unique()
+    brand_pattern = r'\b(' + '|'.join([re.escape(b) for b in all_brands]) + r')\b'
+    mentioned_brands = re.findall(brand_pattern, query, re.IGNORECASE)
 
-    mentioned_categories = [cat for cat in categories if cat in query.lower()]
-    wants_all_categories = bool(re.search(r'all categories', query, re.IGNORECASE))
+    # Categories: Find all known categories mentioned.
+    all_categories = df['Category'].unique()
+    category_pattern = r'\b(' + '|'.join([re.escape(c) for c in all_categories]) + r')\b'
+    mentioned_categories = re.findall(category_pattern, query, re.IGNORECASE)
 
-    filtered = df.copy()
-    if brand:
-        filtered = filtered[filtered['Brand'].str.lower() == brand]
-    if timeperiod:
-        filtered = filtered[filtered['Timeperiod'] == timeperiod]
+    # Tactics: Find all known tactics mentioned.
+    all_tactics = df['Tactic'].unique()
+    tactic_pattern = r'\b(' + '|'.join([re.escape(t) for t in all_tactics]) + r')\b'
+    mentioned_tactics = re.findall(tactic_pattern, query, re.IGNORECASE)
 
-    # If user wants all categories, ignore category filtering entirely
-    if wants_all_categories:
-        pass  # do not filter by category
-    elif mentioned_categories:
-        filtered = filtered[filtered['Category'].str.lower().isin(mentioned_categories)]
+    # --- 2. Filter dataframe based on extracted entities ---
+    
+    filtered_df = df.copy()
 
-    # If budget/objective is mentioned, prioritize rows with spend/contribution
-    if re.search(r'budget|roi|spend|invest|objective', query, re.IGNORECASE):
-        filtered = filtered.sort_values(by=['ROI', '$ Spend (MM)'], ascending=False)
+    # Apply filters only if the user mentioned corresponding entities.
+    # This handles cases where the user wants "all brands" or "all categories".
+    if years_with_data:
+        filtered_df = filtered_df[filtered_df['Timeperiod'].isin(years_with_data)]
+    
+    if mentioned_brands:
+        # Find the original case of the brand name for accurate filtering
+        brands_to_filter = [b for b in all_brands if b.lower() in [mb.lower() for mb in mentioned_brands]]
+        filtered_df = filtered_df[filtered_df['Brand'].isin(brands_to_filter)]
+        
+    if mentioned_categories:
+        # Find the original case of the category name
+        categories_to_filter = [c for c in all_categories if c.lower() in [mc.lower() for mc in mentioned_categories]]
+        filtered_df = filtered_df[filtered_df['Category'].isin(categories_to_filter)]
+        
+    if mentioned_tactics:
+        # Find the original case of the tactic name
+        tactics_to_filter = [t for t in all_tactics if t.lower() in [mt.lower() for mt in mentioned_tactics]]
+        filtered_df = filtered_df[filtered_df['Tactic'].isin(tactics_to_filter)]
 
-    docs = [Document(page_content=row['text']) for _, row in filtered.iterrows()]
+    # --- 3. Handle cases with no direct filter matches (e.g., future year queries) ---
+    
+    # If filtering resulted in an empty dataframe, it might be a query about the future.
+    # In this case, we can provide data from the most recent year available for the other filters.
+    if filtered_df.empty and years_in_query and not years_with_data:
+        temp_df = df.copy()
+        if mentioned_brands:
+            brands_to_filter = [b for b in all_brands if b.lower() in [mb.lower() for mb in mentioned_brands]]
+            temp_df = temp_df[temp_df['Brand'].isin(brands_to_filter)]
+        if mentioned_categories:
+            categories_to_filter = [c for c in all_categories if c.lower() in [mc.lower() for mc in mentioned_categories]]
+            temp_df = temp_df[temp_df['Category'].isin(categories_to_filter)]
+        if mentioned_tactics:
+            tactics_to_filter = [t for t in all_tactics if t.lower() in [mt.lower() for mt in mentioned_tactics]]
+            temp_df = temp_df[temp_df['Tactic'].isin(tactics_to_filter)]
+        
+        if not temp_df.empty:
+            latest_year = temp_df['Timeperiod'].max()
+            filtered_df = temp_df[temp_df['Timeperiod'] == latest_year]
+    
+    # Sort by ROI if query is about optimization
+    if re.search(r'budget|roi|spend|invest|objective|optimal', query, re.IGNORECASE):
+        filtered_df = filtered_df.sort_values(by=['ROI', '$ Spend (MM)'], ascending=False)
 
-    # If no docs found, fallback to semantic search using normalized embeddings
+    # --- 4. Combine filtered results with semantic search results ---
+    
+    # Convert filtered rows to Document objects
+    docs = [Document(page_content=row['text']) for _, row in filtered_df.iterrows()]
+
+    # Augment with semantic search results from FAISS
     query_embedding_raw = embed_model.embed_query(query)
     query_embedding = np.array(query_embedding_raw) / norm(query_embedding_raw)
     if query_embedding.dtype != np.float32:
@@ -119,16 +158,16 @@ def retrieve_similar_documents(query, top_k=10):
     D, I = index.search(np.expand_dims(query_embedding, axis=0), top_k)
     faiss_docs = [Document(page_content=df.iloc[idx]["text"]) for idx in I[0]]
 
-    # Combine filtered and FAISS results
-    combined_docs = docs + faiss_docs
+    # Combine filtered and FAISS results, giving priority to filtered docs and removing duplicates.
+    combined_docs = docs
+    existing_texts = {doc.page_content for doc in docs}
+    for doc in faiss_docs:
+        if doc.page_content not in existing_texts:
+            combined_docs.append(doc)
+            existing_texts.add(doc.page_content)
 
-    # Add a flag if a required tactic is missing
-    required_tactics = []
-    if 'email marketing' in query.lower():
-        required_tactics.append('email marketing')
-    missing_tactics = [tac for tac in required_tactics if tac not in filtered['Tactic'].str.lower().unique()]
-    if missing_tactics:
-        combined_docs.append(Document(page_content=f"WARNING: Historical data for tactics {', '.join(missing_tactics)} is missing. Please extrapolate or reason based on available data."))
+    if not combined_docs:
+            return [Document(page_content="I could not find any relevant historical data for your query. Please try rephrasing or check if you are using recognized brand, category, and tactic names.")]
 
     return combined_docs
 
