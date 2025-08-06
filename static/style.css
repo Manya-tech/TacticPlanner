@@ -111,8 +111,9 @@ body, html {
 /* Chat header left alignment */
 .chat-header {
     display: flex;
+    flex-direction: column;
     justify-content: flex-start;
-    align-items: center;
+    align-items: flex-start;
     padding: 30px 40px 30px 40px;
     background: linear-gradient(90deg, #4b2995, #7a5de8);
     color: #fff;
