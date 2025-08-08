@@ -20,7 +20,7 @@ TacticPlanner/
 │   ├── style.css
 │   ├── chat.css
 ├── data/                    # Data files
-│   ├── department_marketing_mix_data.xlsx
+│   ├── Sample Data.xlsx
 │   ├── faiss_mmm_index.index
 ├── requirements.txt         # Python dependencies
 ├── README.md                # Project documentation
@@ -54,7 +54,7 @@ TacticPlanner/
 3. Interact with the AI assistant to get marketing mix recommendations.
 
 ## Demo
-[Watch the Demo Video](https://github.com/user-attachments/assets/8885b21e-f342-46c9-91b3-30fba9e13530)
+[Watch the Demo Video](https://github.com/user-attachments/assets/3c0aa019-fccf-4dd3-8ea6-41234289e849)
 
 ## Live Website
 [Visit the Live Website](https://tacticplanner.onrender.com)
