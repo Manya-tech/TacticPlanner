@@ -22,7 +22,7 @@ app.jinja_env.filters['nl2br'] = lambda value: Markup(value.replace('\n', '<br>'
 
 # ---------------------- Load Models and Data ----------------------
 df = pd.read_excel("data/Sample data.xlsx")
-df["text"] = df.apply(lambda row: f"{row['Brand']} brand ran {row['Category']} campaign using {row['Tactic']} tactic in {row['Timeperiod']}. Spend: {row['$ Spend (MM)']}, Contribution: {row['$ Contribution']}, ROI: {row['ROI']}, Incremental ROI: {row['iROI']}", axis=1)
+df["text"] = df.apply(lambda row: f"{row['Brand']} brand ran {row['Team']} campaign using {row['Tactic']} tactic in {row['Timeperiod']}. Spend: {row['$ Spend (MM)']}, Contribution: {row['$ Contribution']}, % Contribution: {row['% Contribution']}, ROI: {row['ROI']}, Incremental ROI: {row['iROI']}", axis=1)
 
 MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
 if not MISTRAL_API_KEY:
@@ -33,15 +33,8 @@ EMBEDDING_DIM = 1024  # Mistral embed model default dimension
 
 embed_model = MistralAIEmbeddings(model=EMBEDDING_MODEL_NAME)
 
-# Precompute and normalize document embeddings for FAISS
-document_texts = list(df["text"])
-raw_doc_embeddings = embed_model.embed_documents(document_texts)
-doc_embeddings = [np.array(e) / norm(e) for e in raw_doc_embeddings]
-doc_embeddings_np = np.stack(doc_embeddings)
-if doc_embeddings_np.dtype != np.float32:
-    doc_embeddings_np = doc_embeddings_np.astype(np.float32)
-index = faiss.IndexFlatL2(doc_embeddings_np.shape[1])
-index.add(doc_embeddings_np)
+# Load FAISS index from disk
+index = faiss.read_index("data/faiss_mmm_index.index")
 
 LANGUAGE_MODEL = ChatMistralAI(model="mistral-large-latest")
 
@@ -87,10 +80,10 @@ def retrieve_similar_documents(query, top_k=10):
     brand_pattern = r'\b(' + '|'.join([re.escape(b) for b in all_brands]) + r')\b'
     mentioned_brands = re.findall(brand_pattern, query, re.IGNORECASE)
 
-    # Categories: Find all known categories mentioned.
-    all_categories = df['Category'].unique()
-    category_pattern = r'\b(' + '|'.join([re.escape(c) for c in all_categories]) + r')\b'
-    mentioned_categories = re.findall(category_pattern, query, re.IGNORECASE)
+    # Teams: Find all known teams mentioned (was 'Category').
+    all_teams = df['Team'].unique()
+    team_pattern = r'\b(' + '|'.join([re.escape(t) for t in all_teams]) + r')\b'
+    mentioned_teams = re.findall(team_pattern, query, re.IGNORECASE)
 
     # Tactics: Find all known tactics mentioned.
     all_tactics = df['Tactic'].unique()
@@ -102,7 +95,7 @@ def retrieve_similar_documents(query, top_k=10):
     filtered_df = df.copy()
 
     # Apply filters only if the user mentioned corresponding entities.
-    # This handles cases where the user wants "all brands" or "all categories".
+    # This handles cases where the user wants "all brands" or "all teams".
     if years_with_data:
         filtered_df = filtered_df[filtered_df['Timeperiod'].isin(years_with_data)]
     
@@ -111,10 +104,10 @@ def retrieve_similar_documents(query, top_k=10):
         brands_to_filter = [b for b in all_brands if b.lower() in [mb.lower() for mb in mentioned_brands]]
         filtered_df = filtered_df[filtered_df['Brand'].isin(brands_to_filter)]
         
-    if mentioned_categories:
-        # Find the original case of the category name
-        categories_to_filter = [c for c in all_categories if c.lower() in [mc.lower() for mc in mentioned_categories]]
-        filtered_df = filtered_df[filtered_df['Category'].isin(categories_to_filter)]
+    if mentioned_teams:
+        # Find the original case of the team name
+        teams_to_filter = [t for t in all_teams if t.lower() in [mt.lower() for mt in mentioned_teams]]
+        filtered_df = filtered_df[filtered_df['Team'].isin(teams_to_filter)]
         
     if mentioned_tactics:
         # Find the original case of the tactic name
@@ -130,9 +123,9 @@ def retrieve_similar_documents(query, top_k=10):
         if mentioned_brands:
             brands_to_filter = [b for b in all_brands if b.lower() in [mb.lower() for mb in mentioned_brands]]
             temp_df = temp_df[temp_df['Brand'].isin(brands_to_filter)]
-        if mentioned_categories:
-            categories_to_filter = [c for c in all_categories if c.lower() in [mc.lower() for mc in mentioned_categories]]
-            temp_df = temp_df[temp_df['Category'].isin(categories_to_filter)]
+        if mentioned_teams:
+            teams_to_filter = [t for t in all_teams if t.lower() in [mt.lower() for mt in mentioned_teams]]
+            temp_df = temp_df[temp_df['Team'].isin(teams_to_filter)]
         if mentioned_tactics:
             tactics_to_filter = [t for t in all_tactics if t.lower() in [mt.lower() for mt in mentioned_tactics]]
             temp_df = temp_df[temp_df['Tactic'].isin(tactics_to_filter)]
